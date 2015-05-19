@@ -88,7 +88,6 @@ public class RunscopeTrigger {
     	        
     	        @Override
     	        protected void releaseResources() {
-    	            //TO-DO close the response
     	        }
     	        
     	        @Override
