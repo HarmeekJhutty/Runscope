@@ -42,18 +42,16 @@ public class RunscopeBuilder extends Builder {
     private final String triggerEndPoint;
     private final String accessToken;
     private final String bucketKey;
-    private final String formParameters;
     private String triggerUrl;  
     private int timeout = 60;
     
     public String resp;
 
     @DataBoundConstructor
-    public RunscopeBuilder(String triggerEndPoint, String accessToken, String bucketKey, String formParameters, int timeout) {
+    public RunscopeBuilder(String triggerEndPoint, String accessToken, String bucketKey, int timeout) {
 		this.triggerEndPoint = triggerEndPoint;
 		this.accessToken = accessToken;
 		this.bucketKey = bucketKey;
-		this.formParameters = formParameters;
 		this.timeout = timeout;
 	}
 
@@ -79,13 +77,6 @@ public class RunscopeBuilder extends Builder {
 	}
 	
 	/**
-	 * @return the formParameters
-	 */
-	public String getFormParameters() {
-		return formParameters;
-	}
-	
-	/**
 	 * @return the timeout
 	 */
 	public Integer getTimeout() {
@@ -104,22 +95,12 @@ public class RunscopeBuilder extends Builder {
     	logger.println("Trigger End Point:" + triggerEndPoint);
     	logger.println("Access Token:" + accessToken);
     	logger.println("Bucket Key:" + bucketKey);
-    	logger.println("Parameters:" + formParameters);
     	
-    	try{
-    	    triggerUrl = buildTriggerUrl(triggerEndPoint);
-    	    logger.println("API Trigger Url:" + triggerUrl);
-    	} catch (URISyntaxException e) {
-    	    logger.println("Error building Trigger Uri:" + e.toString());
-    	    build.setResult(Result.FAILURE);
-    	    e.printStackTrace();
-    	}
-    	
-    	String resultsUrl = new RunscopeTrigger(logger, triggerUrl, accessToken, timeout, TEST_TRIGGER).process();
-        logger.println("Test Results Url:" + resultsUrl);
+    	String resultsUrl = new RunscopeTrigger(logger, triggerEndPoint, accessToken, timeout, TEST_TRIGGER).process();
+        logger.println("Test Results URL:" + resultsUrl);
         
         String apiResultsUrl = resultsUrl.replace(SCHEME + "://" + RUNSCOPE_HOST + "/radar/" + bucketKey, SCHEME + "://" + API_HOST + "/buckets/" + bucketKey + "/radar");
-        logger.println("API Url:" + apiResultsUrl);
+        logger.println("API URL:" + apiResultsUrl);
         
         try {
             TimeUnit.SECONDS.sleep(10);
@@ -151,28 +132,6 @@ public class RunscopeBuilder extends Builder {
         return true;
     }
     
-    /**
-     * @param endPoint
-     * @return trigger url
-     * @throws URISyntaxException
-     */
-    private String buildTriggerUrl(String endPoint) throws URISyntaxException{
-		
-	List<NameValuePair> params = new ArrayList<NameValuePair>();
-    	String[] parameters = formParameters.split(",");
-    	for (int i=0; i<parameters.length; i++){
-    		String[] keyValue = parameters[i].trim().split(":");
-    		params.add(new BasicNameValuePair(keyValue[0], keyValue[1]));
-    	}
-		URI uri = new URIBuilder()
-		.setScheme(SCHEME)
-		.setHost(API_HOST)
-		.setPath(endPoint)
-		.setParameters(params)
-		.build();
-		return uri.toString();		
-	}
-
     @Override
     public DescriptorImpl getDescriptor() {
         return (DescriptorImpl)super.getDescriptor();
