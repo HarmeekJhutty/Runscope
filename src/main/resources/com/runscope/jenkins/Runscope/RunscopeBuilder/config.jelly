@@ -19,10 +19,7 @@
   <f:entry title="Bucket Key:" field="bucketKey">
     <f:textbox />
   </f:entry>
-  <f:entry title="Parameters:" field="formParameters">
-    <f:textbox />
-  </f:entry>
-    <f:entry title="Timeout:" field="timeout">
+  <f:entry title="Timeout:" field="timeout">
     <f:textbox />
   </f:entry>
 </j:jelly>
