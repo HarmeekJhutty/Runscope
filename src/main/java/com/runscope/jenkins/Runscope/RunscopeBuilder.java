@@ -1,11 +1,12 @@
 package com.runscope.jenkins.Runscope;
 
 import java.io.PrintStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import hudson.Launcher;
 import hudson.Extension;
@@ -16,9 +17,6 @@ import hudson.model.AbstractProject;
 import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 
-import org.apache.http.NameValuePair;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.message.BasicNameValuePair;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
@@ -29,20 +27,12 @@ import org.kohsuke.stapler.DataBoundConstructor;
  */
 public class RunscopeBuilder extends Builder {
 
-    private static final String SCHEME = "https";
-    private static final String API_HOST = "api.runscope.com";
-    private static final String RUNSCOPE_HOST = "www.runscope.com";
     private static final String DISPLAY_NAME = "Runscope Configuration";
-    private static final String TEST_TRIGGER = "trigger";
-    private static final String TEST_RESULTS = "results";
     private static final String TEST_RESULTS_PASS = "pass";
-    private static final String TEST_RESULTS_WORKING = "working";
-    private static final String TEST_RESULTS_QUEUED = "queued";
-	
+ 	
     private final String triggerEndPoint;
     private final String accessToken;
     private final String bucketKey;
-    private String triggerUrl;  
     private int timeout = 60;
     
     public String resp;
@@ -52,7 +42,8 @@ public class RunscopeBuilder extends Builder {
 		this.triggerEndPoint = triggerEndPoint;
 		this.accessToken = accessToken;
 		this.bucketKey = bucketKey;
-		this.timeout = timeout;
+		if(timeout >= 0 )
+		    this.timeout = timeout;
 	}
 
 	/**
@@ -90,44 +81,31 @@ public class RunscopeBuilder extends Builder {
     public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener) {
     	
     	PrintStream logger = listener.getLogger();
- 
-    	logger.println("Test Trigger Configuration:");
+
+    	logger.println("Build Trigger Configuration:");
     	logger.println("Trigger End Point:" + triggerEndPoint);
     	logger.println("Access Token:" + accessToken);
     	logger.println("Bucket Key:" + bucketKey);
+    	logger.println("Timeout:" + timeout);
     	
-    	String resultsUrl = new RunscopeTrigger(logger, triggerEndPoint, accessToken, timeout, TEST_TRIGGER).process();
-        logger.println("Test Results URL:" + resultsUrl);
-        
-        String apiResultsUrl = resultsUrl.replace(SCHEME + "://" + RUNSCOPE_HOST + "/radar/" + bucketKey, SCHEME + "://" + API_HOST + "/buckets/" + bucketKey + "/radar");
-        logger.println("API URL:" + apiResultsUrl);
-        
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        Future<String> future = executorService.submit(new RunscopeTrigger(logger, triggerEndPoint, accessToken, /*triggerEndPoint, */bucketKey));
+
         try {
-            TimeUnit.SECONDS.sleep(10);
-        } catch(InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            ex.printStackTrace();
+            String result = future.get(timeout, TimeUnit.SECONDS);
+            if (!TEST_RESULTS_PASS.equalsIgnoreCase(result)) {
+        	build.setResult(Result.FAILURE);
+            }
+        } catch (TimeoutException e) {
+            logger.println("Timeout Exception:" + e.toString());
+            build.setResult(Result.FAILURE);
+            e.printStackTrace();
+        } catch (Exception e) {
+            logger.println("Exception:" + e.toString());
+            build.setResult(Result.FAILURE);
+            e.printStackTrace();
         }
-        
-        boolean flag = true;
-            
-        while(flag){
-        	String res = new RunscopeTrigger(logger, apiResultsUrl, accessToken, timeout, TEST_RESULTS).process();
-        	logger.println("Response recieved:" + res);
-        	
-        	if( TEST_RESULTS_WORKING.equalsIgnoreCase(res) ||  TEST_RESULTS_QUEUED.equalsIgnoreCase(res)  ) {
-        		 try {
-        	        	TimeUnit.SECONDS.sleep(1);
-        	        } catch(InterruptedException ex) {
-        	            Thread.currentThread().interrupt();
-        	        }
-        		flag = true;
-        	} else {
-        		if(!TEST_RESULTS_PASS.equalsIgnoreCase(res))
-                	build.setResult(Result.FAILURE);
-        		flag = false;
-        	}    	
-        }
+        executorService.shutdownNow();
         
         return true;
     }

@@ -3,7 +3,12 @@ package com.runscope.jenkins.Runscope;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.CharBuffer;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -29,33 +34,73 @@ import net.sf.json.JSONObject;
  * @author Harmeek Jhutty
  * @email  hjhutty@redeploy.io
  */
-public class RunscopeTrigger {
+public class RunscopeTrigger implements Callable<String>{
     
+    private static final String SCHEME = "https";
+    private static final String API_HOST = "api.runscope.com";
+    private static final String RUNSCOPE_HOST = "www.runscope.com";
     private static final String TEST_TRIGGER = "trigger";
+    private static final String TEST_RESULTS = "results";
     private static final String TEST_RESULTS_PASS = "pass";
+    private static final String TEST_RESULTS_WORKING = "working";
+    private static final String TEST_RESULTS_QUEUED = "queued";
     private static final String TEST_RESULTS_FAIL = "fail";
 
-    private final String accessToken; 
-    private int timeout;  
+    private final String accessToken;  
     private String url;
     private String result;
-    private String endPoint;
+    private String bucketKey;
+    
     private PrintStream log;
+    String resp = null;
 	
-    public RunscopeTrigger(PrintStream logger, String url, String accessToken, int timeout, String endPoint) {
-		this.log = logger;
-		this.url = url;
-		this.accessToken = accessToken;
-		this.endPoint = endPoint;
-		this.timeout = timeout;
+    public RunscopeTrigger(PrintStream logger, String url, String accessToken, String bucketKey) {
+	this.log = logger;
+	this.url = url;
+	this.accessToken = accessToken;
+	this.bucketKey = bucketKey;
     }
+    
+    @Override
+    public String call() throws Exception {
 	
-    public String process() {
+	String resultsUrl = process(url, TEST_TRIGGER);
+	log.println("Test Results URL:" + resultsUrl);
+	        
+	String apiResultsUrl = resultsUrl.replace(SCHEME + "://" + RUNSCOPE_HOST + "/radar/" + bucketKey, SCHEME + "://" + API_HOST + "/buckets/" + bucketKey + "/radar");
+	log.println("API URL:" + apiResultsUrl);
+	        
+	try {
+	    TimeUnit.SECONDS.sleep(10);
+	} catch(InterruptedException ex) {
+	    Thread.currentThread().interrupt();
+	    ex.printStackTrace();
+	}
+	          
+	while(true){
+	    resp = process(apiResultsUrl, TEST_RESULTS);
+	    log.println("Response received:" + resp);
+	        	
+	    if( TEST_RESULTS_WORKING.equalsIgnoreCase(resp) ||  TEST_RESULTS_QUEUED.equalsIgnoreCase(resp)  ) {
+		try {
+		    TimeUnit.SECONDS.sleep(1);
+	        } catch(InterruptedException ex) {
+	            Thread.currentThread().interrupt();
+	        }
+	    } else {
+		break;
+	    }
+	 }	       
+	 return resp;
+	}
+    
+	
+    public String process(String url, final String apiEndPoint) {
     
     	RequestConfig config = RequestConfig.custom()
-    			  .setConnectTimeout(timeout * 1000)
-    			  .setConnectionRequestTimeout(timeout * 1000)
-    			  .setSocketTimeout(timeout * 1000).build();
+    			  .setConnectTimeout(60 * 1000)
+    			  .setConnectionRequestTimeout(60 * 1000)
+    			  .setSocketTimeout(60 * 1000).build();
     	
         CloseableHttpAsyncClient httpclient = HttpAsyncClientBuilder.create().setDefaultRequestConfig(config).build(); 
         AsyncCharConsumer<HttpResponse> consumer = null;
@@ -64,7 +109,7 @@ public class RunscopeTrigger {
     		httpclient.start();
     		final CountDownLatch latch = new CountDownLatch(1);
     		final HttpGet request = new HttpGet(url);
-    		log.println("GET(" + endPoint + "): " + url);
+    		log.println("GET: " + url);
     		
     		String authHeader = "Bearer " + accessToken;
     		request.setHeader(HttpHeaders.AUTHORIZATION, authHeader);
@@ -83,7 +128,7 @@ public class RunscopeTrigger {
     	        @Override
     	        protected void onCharReceived(final CharBuffer buf, final IOControl ioctrl) throws IOException {
     	            log.println("Data received: " + buf);
-    	            result = parseJSON(buf.toString(), endPoint);
+    	            result = parseJSON(buf.toString(), apiEndPoint);
     	        }
     	        
     	        @Override
@@ -100,8 +145,7 @@ public class RunscopeTrigger {
 
     	        public void completed(final HttpResponse response) {
     	            latch.countDown();
-    	            //if (response != null) response.close();
-    	            log.println("Finsihed Url request: " + request.getRequestLine() + response.getStatusLine());
+    	            log.println("Finished Url request: " + request.getRequestLine() + response.getStatusLine());
     	        }
 
     	        public void failed(final Exception ex) {
@@ -137,7 +181,9 @@ public class RunscopeTrigger {
      * @param apiEndPoint
      * @return test result
      */
-    private String parseJSON(String data, String apiEndPoint){          
+    private String parseJSON(String data, String apiEndPoint){      
+	
+	log.println("API EndPoint: " +apiEndPoint);
     	
 	JSONObject jsonObject = JSONObject.fromObject(data);
     	JSONObject dataObject = (JSONObject) jsonObject.get("data"); 
