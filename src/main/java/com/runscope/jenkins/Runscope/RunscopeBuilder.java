@@ -32,16 +32,14 @@ public class RunscopeBuilder extends Builder {
  	
     private final String triggerEndPoint;
     private final String accessToken;
-    private final String bucketKey;
     private int timeout = 60;
     
     public String resp;
 
     @DataBoundConstructor
-    public RunscopeBuilder(String triggerEndPoint, String accessToken, String bucketKey, int timeout) {
+    public RunscopeBuilder(String triggerEndPoint, String accessToken, int timeout) {
 		this.triggerEndPoint = triggerEndPoint;
 		this.accessToken = accessToken;
-		this.bucketKey = bucketKey;
 		if(timeout >= 0 )
 		    this.timeout = timeout;
 	}
@@ -58,13 +56,6 @@ public class RunscopeBuilder extends Builder {
 	 */
 	public String getAccessToken() {
 		return accessToken;
-	}
-
-	/**
-	 * @return the bucketKey
-	 */
-	public String getBucketKey() {
-		return bucketKey;
 	}
 	
 	/**
@@ -85,11 +76,10 @@ public class RunscopeBuilder extends Builder {
     	logger.println("Build Trigger Configuration:");
     	logger.println("Trigger End Point:" + triggerEndPoint);
     	logger.println("Access Token:" + accessToken);
-    	logger.println("Bucket Key:" + bucketKey);
     	logger.println("Timeout:" + timeout);
     	
         ExecutorService executorService = Executors.newSingleThreadExecutor();
-        Future<String> future = executorService.submit(new RunscopeTrigger(logger, triggerEndPoint, accessToken, /*triggerEndPoint, */bucketKey));
+        Future<String> future = executorService.submit(new RunscopeTrigger(logger, triggerEndPoint, accessToken /*triggerEndPoint, */));
 
         try {
             String result = future.get(timeout, TimeUnit.SECONDS);
