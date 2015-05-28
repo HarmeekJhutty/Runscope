@@ -27,7 +27,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
  */
 public class RunscopeBuilder extends Builder {
 
-    private static final String DISPLAY_NAME = "Runscope Configuration";
+    private static final String DISPLAY_NAME = "Runscope Test Configuration";
     private static final String TEST_RESULTS_PASS = "pass";
  	
     private final String triggerEndPoint;
