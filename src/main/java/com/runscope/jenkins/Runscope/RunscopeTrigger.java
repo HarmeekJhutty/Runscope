@@ -49,16 +49,14 @@ public class RunscopeTrigger implements Callable<String>{
     private final String accessToken;  
     private String url;
     private String result;
-    private String bucketKey;
     
     private PrintStream log;
     String resp = null;
 	
-    public RunscopeTrigger(PrintStream logger, String url, String accessToken, String bucketKey) {
+    public RunscopeTrigger(PrintStream logger, String url, String accessToken) {
 	this.log = logger;
 	this.url = url;
 	this.accessToken = accessToken;
-	this.bucketKey = bucketKey;
     }
     
     @Override
@@ -66,8 +64,9 @@ public class RunscopeTrigger implements Callable<String>{
 	
 	String resultsUrl = process(url, TEST_TRIGGER);
 	log.println("Test Results URL:" + resultsUrl);
-	        
-	String apiResultsUrl = resultsUrl.replace(SCHEME + "://" + RUNSCOPE_HOST + "/radar/" + bucketKey, SCHEME + "://" + API_HOST + "/buckets/" + bucketKey + "/radar");
+	
+    // TODO: If bucketId or test run detail URI gets added to trigger response, use those instead of regex        
+	String apiResultsUrl = resultsUrl.replaceAll(RUNSCOPE_HOST + "\\/radar\\/([^\\/]+)\\/([^\\/]+)\\/results\\/([^\\/]+)", API_HOST + "/buckets/$1/radar/$2/results/$3");
 	log.println("API URL:" + apiResultsUrl);
 	        
 	try {
